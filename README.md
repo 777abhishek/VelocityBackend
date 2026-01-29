@@ -32,7 +32,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 - `POST /stream` {"url": "...", "mode": "audio"|"av"}
 - `POST /playlist` {"url": "..."}
 - `POST /library/{kind}` (kind: liked | watchlater | playlists)
-- `POST /download` {"url": "...", "format_id": "...", "output_dir": "..."}
+- `POST /download` {"url": "...", "format_id": "...", "output_dir": "...", "max_height": 720, "preferred_ext": "mp4", "codec": "mp4a", "container": "mp4"}
 - `GET /download/{job_id}`
 - `POST /download/{job_id}/cancel`
 
@@ -49,6 +49,15 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 - `video_format_id`
 - `max_height`
 - `preferred_ext`
+
+## Download options
+`/download` accepts these optional fields:
+- `format_id` – specific format ID
+- `max_height` – max video height (e.g., 720)
+- `preferred_ext` – preferred extension (e.g., mp4, webm)
+- `codec` – audio codec (e.g., mp4a, opus)
+- `container` – container format (e.g., mp4, mkv)
+- `output_dir` – custom output directory
 
 ## Deployment
 

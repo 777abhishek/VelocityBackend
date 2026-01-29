@@ -44,6 +44,10 @@ class DownloadRequest(BaseModel):
     cookies: Optional[str] = None
     format_id: Optional[str] = None
     output_dir: Optional[str] = None
+    max_height: Optional[int] = None
+    preferred_ext: Optional[str] = None
+    codec: Optional[str] = None
+    container: Optional[str] = None
 
 
 class DownloadJob(BaseModel):

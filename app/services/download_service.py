@@ -13,7 +13,7 @@ class DownloadManager:
         self._jobs: Dict[str, dict] = {}
         self._lock = threading.Lock()
 
-    def start(self, url: str, cookies: Optional[str], format_id: Optional[str], output_dir: Optional[str]) -> dict:
+    def start(self, url: str, cookies: Optional[str], format_id: Optional[str], output_dir: Optional[str], max_height: Optional[int], preferred_ext: Optional[str], codec: Optional[str], container: Optional[str]) -> dict:
         job_id = str(uuid4())
         job = {
             "job_id": job_id,
@@ -28,7 +28,7 @@ class DownloadManager:
 
         thread = threading.Thread(
             target=self._run,
-            args=(job_id, url, cookies, format_id, output_dir),
+            args=(job_id, url, cookies, format_id, output_dir, max_height, preferred_ext, codec, container),
             daemon=True,
         )
         thread.start()
@@ -47,7 +47,7 @@ class DownloadManager:
             job["status"] = "cancelling"
             return True
 
-    def _run(self, job_id: str, url: str, cookies: Optional[str], format_id: Optional[str], output_dir: Optional[str]) -> None:
+    def _run(self, job_id: str, url: str, cookies: Optional[str], format_id: Optional[str], output_dir: Optional[str], max_height: Optional[int], preferred_ext: Optional[str], codec: Optional[str], container: Optional[str]) -> None:
         def hook(d: dict) -> None:
             with self._lock:
                 job = self._jobs.get(job_id)
@@ -72,12 +72,26 @@ class DownloadManager:
             temp.flush()
             cookie_path = temp.name
 
+        format_selector = format_id or "best"
+        if (max_height or preferred_ext or codec or container):
+            parts = []
+            if max_height:
+                parts.append(f"[height<={max_height}]")
+            if preferred_ext:
+                parts.append(f"ext={preferred_ext}")
+            if codec:
+                parts.append(f"acodec={codec}")
+            if container:
+                parts.append(f"container={container}")
+            format_selector = "+".join(parts) or format_id or "best"
+
         ydl_opts = {
             "quiet": True,
-            "format": format_id or "best",
+            "format": format_selector,
             "outtmpl": f"{output_dir}/%(title)s.%(ext)s" if output_dir else "downloads/%(title)s.%(ext)s",
             "progress_hooks": [hook],
             "noplaylist": True,
+            "no_cookies": not cookies,
         }
         if cookie_path:
             ydl_opts["cookiefile"] = cookie_path

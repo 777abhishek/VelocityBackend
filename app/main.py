@@ -307,7 +307,16 @@ def library(kind: str, req: LibraryRequest) -> Dict[str, Any]:
 
 @app.post("/download")
 def download(req: DownloadRequest) -> DownloadJob:
-    job = download_manager.start(str(req.url), req.cookies, req.format_id, req.output_dir)
+    job = download_manager.start(
+        str(req.url),
+        req.cookies,
+        req.format_id,
+        req.output_dir,
+        req.max_height,
+        req.preferred_ext,
+        req.codec,
+        req.container,
+    )
     return job
 
 

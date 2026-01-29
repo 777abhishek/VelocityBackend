@@ -43,6 +43,7 @@ def run_extract(url: str | HttpUrl, cookies: Optional[str]) -> Dict[str, Any]:
         "skip_download": True,
         "nocheckcertificate": True,
         "noplaylist": False,
+        "no_cookies": not cookies,
     }
     if cookie_path:
         ydl_opts["cookiefile"] = cookie_path
