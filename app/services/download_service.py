@@ -15,7 +15,7 @@ class DownloadManager:
         self._jobs: Dict[str, dict] = {}
         self._lock = threading.Lock()
 
-    def start(self, url: str, cookies: Optional[str], format_id: Optional[str], output_dir: Optional[str], max_height: Optional[int], preferred_ext: Optional[str], codec: Optional[str], container: Optional[str]) -> dict:
+    def start(self, url: str, cookies: Optional[str], format_id: Optional[str], merge_av: bool, output_dir: Optional[str], max_height: Optional[int], preferred_ext: Optional[str], codec: Optional[str], container: Optional[str]) -> dict:
         job_id = str(uuid4())
         job = {
             "job_id": job_id,
@@ -31,7 +31,7 @@ class DownloadManager:
 
         thread = threading.Thread(
             target=self._run,
-            args=(job_id, url, cookies, format_id, output_dir, max_height, preferred_ext, codec, container),
+            args=(job_id, url, cookies, format_id, merge_av, output_dir, max_height, preferred_ext, codec, container),
             daemon=True,
         )
         thread.start()
@@ -50,7 +50,7 @@ class DownloadManager:
             job["status"] = "cancelling"
             return True
 
-    def _run(self, job_id: str, url: str, cookies: Optional[str], format_id: Optional[str], output_dir: Optional[str], max_height: Optional[int], preferred_ext: Optional[str], codec: Optional[str], container: Optional[str]) -> None:
+    def _run(self, job_id: str, url: str, cookies: Optional[str], format_id: Optional[str], merge_av: bool, output_dir: Optional[str], max_height: Optional[int], preferred_ext: Optional[str], codec: Optional[str], container: Optional[str]) -> None:
         def hook(d: dict) -> None:
             with self._lock:
                 job = self._jobs.get(job_id)
@@ -78,17 +78,23 @@ class DownloadManager:
             cookie_path = temp.name
 
         format_selector = format_id or "best"
-        if (max_height or preferred_ext or codec or container):
-            parts = []
+        if not format_id:
+            filters: list[str] = []
             if max_height:
-                parts.append(f"[height<={max_height}]")
+                filters.append(f"height<={max_height}")
             if preferred_ext:
-                parts.append(f"ext={preferred_ext}")
-            if codec:
-                parts.append(f"acodec={codec}")
+                filters.append(f"ext={preferred_ext}")
             if container:
-                parts.append(f"container={container}")
-            format_selector = "+".join(parts) or format_id or "best"
+                filters.append(f"container={container}")
+            if codec:
+                filters.append(f"acodec={codec}")
+            filter_expr = "".join(f"[{flt}]" for flt in filters)
+            if merge_av:
+                format_selector = (
+                    f"bestvideo{filter_expr}+bestaudio/best{filter_expr}/best"
+                )
+            elif filters:
+                format_selector = f"best{filter_expr}/best"
 
         output_root = output_dir or "downloads"
         os.makedirs(output_root, exist_ok=True)
@@ -101,6 +107,8 @@ class DownloadManager:
             "noplaylist": True,
             "no_cookies": not cookies,
         }
+        if merge_av and (preferred_ext or container):
+            ydl_opts["merge_output_format"] = preferred_ext or container
         if cookie_path:
             ydl_opts["cookiefile"] = cookie_path
 

@@ -80,6 +80,17 @@ def simplify_format(fmt: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def categorize_formats(formats: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
+    combined = [f for f in formats if f.get("acodec") != "none" and f.get("vcodec") != "none"]
+    audio_only = [f for f in formats if f.get("vcodec") == "none" and f.get("acodec") != "none"]
+    video_only = [f for f in formats if f.get("vcodec") != "none" and f.get("acodec") == "none"]
+    return {
+        "combined": combined,
+        "video_only": video_only,
+        "audio_only": audio_only,
+    }
+
+
 def pick_best_audio(formats: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     audio_formats = [f for f in formats if f.get("vcodec") == "none" and f.get("acodec") != "none"]
     if not audio_formats:

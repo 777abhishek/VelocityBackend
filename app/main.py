@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+import platform
+import shutil
 import time
 from typing import Any, Dict
 
@@ -26,6 +28,7 @@ from app.services.download_service import DownloadManager
 from app.services.rate_limit import RateLimiter
 from app.services.ytdlp_service import (
     cache_key,
+    categorize_formats,
     filter_formats,
     find_format_by_id,
     library_url,
@@ -140,6 +143,8 @@ def health() -> HealthResponse:
         "cache_size": cache.size(),
         "rate_limit_clients": rate_limiter.client_count(),
         "api_key_required": settings.api_key is not None,
+        "runtime": platform.python_version(),
+        "ffmpeg_available": shutil.which("ffmpeg") is not None,
         "uptime": time.time() - _start_time,
         "requests": _requests,
         "errors": _errors,
@@ -189,8 +194,10 @@ def formats_get(url: str = Query(..., description="Video URL"), cookies: str | N
         return cached
     data = run_extract(url, cookies)
     formats_list = [simplify_format(f) for f in data.get("formats", [])]
+    categorized = categorize_formats(formats_list)
     result: FormatsResponse = {
         "formats": formats_list,
+        "categorized": categorized,
         "subtitles": data.get("subtitles", {}),
         "automatic_captions": data.get("automatic_captions", {}),
     }
@@ -207,8 +214,10 @@ def formats(req: UrlRequest) -> Dict[str, Any]:
         return cached
     data = run_extract(req.url, req.cookies)
     formats_list = [simplify_format(f) for f in data.get("formats", [])]
+    categorized = categorize_formats(formats_list)
     result: FormatsResponse = {
         "formats": formats_list,
+        "categorized": categorized,
         "subtitles": data.get("subtitles", {}),
         "automatic_captions": data.get("automatic_captions", {}),
     }
@@ -311,6 +320,7 @@ def download(req: DownloadRequest) -> DownloadJob:
         str(req.url),
         req.cookies,
         req.format_id,
+        req.merge_av if req.merge_av is not None else True,
         req.output_dir,
         req.max_height,
         req.preferred_ext,

@@ -43,6 +43,7 @@ class DownloadRequest(BaseModel):
     url: HttpUrl
     cookies: Optional[str] = None
     format_id: Optional[str] = None
+    merge_av: Optional[bool] = True
     output_dir: Optional[str] = None
     max_height: Optional[int] = None
     preferred_ext: Optional[str] = None
@@ -64,6 +65,8 @@ class HealthResponse(BaseModel):
     cache_size: int
     rate_limit_clients: int
     api_key_required: bool
+    runtime: str
+    ffmpeg_available: bool
     uptime: float
     requests: int
     errors: int

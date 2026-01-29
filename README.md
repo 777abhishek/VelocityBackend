@@ -32,7 +32,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 - `POST /stream` {"url": "...", "mode": "audio"|"av"}
 - `POST /playlist` {"url": "..."}
 - `POST /library/{kind}` (kind: liked | watchlater | playlists)
-- `POST /download` {"url": "...", "format_id": "...", "output_dir": "...", "max_height": 720, "preferred_ext": "mp4", "codec": "mp4a", "container": "mp4"}
+- `POST /download` {"url": "...", "format_id": "...", "merge_av": true, "output_dir": "...", "max_height": 720, "preferred_ext": "mp4", "codec": "mp4a", "container": "mp4"}
 - `GET /download/{job_id}`
 - `POST /download/{job_id}/cancel`
 
@@ -40,6 +40,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 - Stream URLs from YouTube expire quickly. Fetch them just before playback.
 - Cookies are optional for public videos and format lists.
 - Cookies are typically required for playlists, private videos, age‑restricted videos, or region‑blocked content.
+- Some public videos may still require cookies if the host IP is throttled.
 - If needed, send cookies as `cookies` (Netscape format) in the request body.
 
 ## Streaming options
@@ -53,11 +54,22 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 ## Download options
 `/download` accepts these optional fields:
 - `format_id` – specific format ID
+- `merge_av` – merge best video+audio when `true` (default)
 - `max_height` – max video height (e.g., 720)
 - `preferred_ext` – preferred extension (e.g., mp4, webm)
 - `codec` – audio codec (e.g., mp4a, opus)
 - `container` – container format (e.g., mp4, mkv)
 - `output_dir` – custom output directory
+
+### Download examples (best video + best audio)
+```json
+{
+  "url": "https://youtu.be/dQw4w9WgXcQ",
+  "merge_av": true,
+  "max_height": 720,
+  "preferred_ext": "mp4"
+}
+```
 
 ## Deployment
 
