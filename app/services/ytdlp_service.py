@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import tempfile
+import time
 from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException
@@ -29,7 +30,7 @@ def is_hls_format(fmt: Dict[str, Any]) -> bool:
     )
 
 
-def run_extract(url: str | HttpUrl, cookies: Optional[str]) -> Dict[str, Any]:
+def run_extract(url: str | HttpUrl, cookies: Optional[str], max_retries: int = 3) -> Dict[str, Any]:
     url_str = str(url)
     cookie_path = None
     if cookies:
@@ -38,31 +39,45 @@ def run_extract(url: str | HttpUrl, cookies: Optional[str]) -> Dict[str, Any]:
         temp.flush()
         cookie_path = temp.name
 
-    ydl_opts = {
-        "quiet": True,
-        "skip_download": True,
-        "nocheckcertificate": True,
-        "noplaylist": False,
-        "no_cookies": not cookies,
-    }
-    if cookie_path:
-        ydl_opts["cookiefile"] = cookie_path
+    for attempt in range(max_retries):
+        try:
+            ydl_opts = {
+                "quiet": True,
+                "skip_download": True,
+                "nocheckcertificate": True,
+                "noplaylist": False,
+                "no_cookies": not cookies,
+            }
+            if cookie_path:
+                ydl_opts["cookiefile"] = cookie_path
 
-    try:
-        with YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url_str, download=False)
-    except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    finally:
-        if cookie_path:
             try:
-                import os
+                with YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(url_str, download=False)
+            except Exception as exc:  # noqa: BLE001
+                error_msg = str(exc).lower()
+                if "429" in error_msg or "too many requests" in error_msg:
+                    if attempt < max_retries - 1:
+                        wait_time = (attempt + 1) * 5  # 5s, 10s, 15s
+                        print(f"Rate limited, retrying in {wait_time}s... (attempt {attempt + 1}/{max_retries})")
+                        time.sleep(wait_time)
+                        continue
+                raise HTTPException(status_code=500, detail=str(exc)) from exc
+            finally:
+                if cookie_path:
+                    try:
+                        import os
+                        os.remove(cookie_path)
+                    except OSError:
+                        pass
 
-                os.remove(cookie_path)
-            except OSError:
-                pass
+            return info
+        except Exception as e:
+            if attempt == max_retries - 1:
+                raise HTTPException(status_code=500, detail=f"Failed after {max_retries} retries: {str(e)}") from e
+            time.sleep((attempt + 1) * 5)
 
-    return info
+    raise HTTPException(status_code=500, detail="Max retries exceeded")
 
 
 def simplify_format(fmt: Dict[str, Any]) -> Dict[str, Any]:
