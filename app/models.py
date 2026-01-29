@@ -55,6 +55,7 @@ class DownloadJob(BaseModel):
     status: str
     progress: float
     filename: Optional[str] = None
+    file_path: Optional[str] = None
     error: Optional[str] = None
 
 

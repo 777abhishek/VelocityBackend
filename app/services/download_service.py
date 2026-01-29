@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import os
 import threading
 import tempfile
+import time
 from typing import Dict, Optional
 from uuid import uuid4
 
@@ -20,6 +22,7 @@ class DownloadManager:
             "status": "queued",
             "progress": 0.0,
             "filename": None,
+            "file_path": None,
             "error": None,
             "cancel": False,
         }
@@ -63,7 +66,9 @@ class DownloadManager:
                 elif d.get("status") == "finished":
                     job["progress"] = 100.0
                     job["status"] = "processing"
-                    job["filename"] = d.get("filename")
+                    job["file_path"] = d.get("filename")
+                    if d.get("filename"):
+                        job["filename"] = os.path.basename(d.get("filename"))
 
         cookie_path = None
         if cookies:
@@ -85,10 +90,13 @@ class DownloadManager:
                 parts.append(f"container={container}")
             format_selector = "+".join(parts) or format_id or "best"
 
+        output_root = output_dir or "downloads"
+        os.makedirs(output_root, exist_ok=True)
+
         ydl_opts = {
             "quiet": True,
             "format": format_selector,
-            "outtmpl": f"{output_dir}/%(title)s.%(ext)s" if output_dir else "downloads/%(title)s.%(ext)s",
+            "outtmpl": f"{output_root}/%(title)s.%(ext)s",
             "progress_hooks": [hook],
             "noplaylist": True,
             "no_cookies": not cookies,
@@ -96,25 +104,37 @@ class DownloadManager:
         if cookie_path:
             ydl_opts["cookiefile"] = cookie_path
 
-        try:
-            with YoutubeDL(ydl_opts) as ydl:
-                ydl.download([url])
-            with self._lock:
-                job = self._jobs.get(job_id)
-                if job:
-                    job["status"] = "completed"
-                    job["progress"] = 100.0
-        except Exception as exc:  # noqa: BLE001
-            with self._lock:
-                job = self._jobs.get(job_id)
-                if job:
-                    job["status"] = "failed"
-                    job["error"] = str(exc)
-        finally:
-            if cookie_path:
-                try:
-                    import os
-
-                    os.remove(cookie_path)
-                except OSError:
-                    pass
+        attempts = 0
+        max_retries = 3
+        backoff_seconds = 2
+        while True:
+            try:
+                with YoutubeDL(ydl_opts) as ydl:
+                    ydl.download([url])
+                with self._lock:
+                    job = self._jobs.get(job_id)
+                    if job:
+                        job["status"] = "completed"
+                        job["progress"] = 100.0
+                break
+            except Exception as exc:  # noqa: BLE001
+                attempts += 1
+                should_retry = "HTTP Error 429" in str(exc) and attempts <= max_retries
+                with self._lock:
+                    job = self._jobs.get(job_id)
+                    if job:
+                        if should_retry:
+                            job["status"] = "retrying"
+                        else:
+                            job["status"] = "failed"
+                        job["error"] = str(exc)
+                if should_retry:
+                    time.sleep(backoff_seconds * attempts)
+                    continue
+                break
+            finally:
+                if cookie_path:
+                    try:
+                        os.remove(cookie_path)
+                    except OSError:
+                        pass

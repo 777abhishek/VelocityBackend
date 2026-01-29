@@ -11,3 +11,4 @@ venv.bak/
 downloads/
 *.log
 .DS_Store
+.venv/
